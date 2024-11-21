@@ -7,12 +7,25 @@ import time
 import json
 from enum import Enum
 import asyncio
-from EdgeGPT import Chatbot
+import json
+import threading
+import openai
+import os
+import dotenv
+from pydantic import ValidationError
+
+from module_speech.response_format import ConfidenceScores
+
+dotenv.load_dotenv()
+
+openai_api_key = os.getenv('OPENAI_API_KEY')
+openai.api_key = openai_api_key
+
 
 WAKE_WORD = "roxy"
 CONFIDENCE = 0.70
 TIMEOUT = 30
-USE_BING = True
+USE_CHATGPT_API = True
 DEBUG = False
 #forward_labels = ["forward", "next"]
 forward_labels = ["step forward"]
@@ -60,19 +73,7 @@ class SpeechRecognition:
             self.client.connect("192.168.137.1", 1883, 60)
         print("MQTT client initialized")
         self.gotTask = False
-        if USE_BING:
-            print("Using Bing Chat...")
-            try:
-                with open('./module_speech/cookies.json') as json_file:
-                    with open('./module_speech/prompt.txt') as prompt_file:
-                        self.cookies = json.load(json_file)
-                        self.prompt = prompt_file.read()
-                        self.bot = Chatbot(cookies=self.cookies)
-                        print("Chatbot initialized")
-            except Exception as e:
-                print("Error opening file: "+ str(e))
-                return
-        else:
+        if not USE_CHATGPT_API:
             print("Using tranformer pipeline")
             self.processor = pipeline(model="facebook/bart-large-mnli", multi_label = True)
             print("Processing-Model initialized")
@@ -95,33 +96,73 @@ class SpeechRecognition:
             t.daemon = True
             t.start()
 
-    async def askBing(self,text):
-        print("Asking Bing...")
-        task = self.task
-        answer = await self.bot.ask(prompt=self.prompt + ' ' + text + '"', conversation_style="precise", locale = "en-US")
-        await self.bot.close()
-        print("Answer recieved")
-        answer = answer["item"]["messages"][1]["text"]
-        answer = answer.partition("ClassfyGPT: ")[2].replace("(","").replace(")","")
-        print(answer)
-        labels_confidences = [pair.strip().split(" Confidence: ") for pair in answer.split(",")]
-        labels = [pair[0] for pair in labels_confidences]
-        confidences = [float(pair[1]) for pair in labels_confidences]
-        selected_labels = [label for label, confidence in zip(labels, confidences) if confidence > 80]
-        if selected_labels and not "Other" in selected_labels:
-            self.publishTask(NextStep.FORWARD if "Forward" in selected_labels else NextStep.BACKWARD, task)
-        else:
-            #other
-            pass
+    async def send_to_openai(self,text):
+        with open('./module_speech/system_prompt.txt', 'r') as file:
+            system_prompt = file.read()
+
+        response = openai.ChatCompletion.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": text
+                        }
+                    ]
+                }
+            ],
+            temperature=0.63,
+            max_tokens=2048,
+            top_p=1,
+            frequency_penalty=0,
+            presence_penalty=0,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "confidence_scores",
+                    "schema": ConfidenceScores.schema()
+                }
+            }
+        )
+        content_json_str = response["item"]["messages"][1]["text"]
+
+        try:
+            content_dict = json.loads(content_json_str)
+            confidence_scores = ConfidenceScores(**content_dict)
+            print(confidence_scores)
+
+            confidence_dict = confidence_scores.dict()
+            selected_labels = [
+                label for label, confidence in confidence_dict.items() if confidence > 80
+            ]
+
+            # handle the selected labels
+            if selected_labels and "Other" not in selected_labels:
+                next_step = NextStep.FORWARD if "Forward" in selected_labels else NextStep.BACKWARD
+                self.publishTask(next_step, self.task)
+            else:
+                # handle 'Other' or no high-confidence labels
+                pass
+
+        except json.JSONDecodeError as e:
+            print("Error decoding JSON:", e)
+
+        except ValidationError as e:
+            print("Error parsing confidence scores:", e)
 
     # callback function
     def wake_word_callback(self, text):
         try:
             print("Wake word detected! Processing text: "+text)
-            if USE_BING:
-                asyncio.run(self.askBing(text))
+            if USE_CHATGPT_API:
+                asyncio.run(self.send_to_openai(text))
             else:
-                task = self.task
                 response = self.processor(
                     text,
                     #candidate_labels= forward_labels + backward_labels + ["other"],

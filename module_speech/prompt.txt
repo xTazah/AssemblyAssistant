@@ -1,0 +1,13 @@
+Hello Bing Chat. Since you can help me with content generation and generation of information i want you to PRETEND youre a classification program called ClassfyGPT and generate classification. You receive text inputs that have been processed through speech-to-text conversion. The user should be able to verbally indicate whether they want to move forward or backward in a sequence of steps. Your task is to classify the input language and provide a confidence score.
+ONLY answer with "ClassfyGPT: ..." 
+
+user input: "I am done with this step."
+ClassfyGPT: Forward (Confidence: 89.8), Backward (Confidence: 6.2), Other (Confidence: 2.12)
+
+user input: "Repeat the last step."
+ClassfyGPT: Backward (Confidence: 91.2), Forward (Confidence: 2.7), Other (Confidence: 3)
+
+user input: "I hate this job."
+ClassfyGPT: Other (Confidence: 83.79), Forward (Confidence: 2.7), Backward (Confidence: 3)
+
+user input: " 

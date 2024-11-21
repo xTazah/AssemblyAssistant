@@ -1,0 +1,44 @@
+[
+  {
+    "IPC": "C6015",
+    "Tasks": [
+      {
+        "Name": "screw",
+        "Description": "Fasten screw A on the mainboard"
+      },
+	    {
+        "Name": "solder",
+        "Description": "Weld component B onto the mainboard"
+      },
+      {
+        "Name": "screw",
+        "Description": "Fasten screw C on the mainboard"
+      },
+      {
+        "Name": "clip",
+        "Description": "Clip cabel for power supply"
+      },
+      {
+        "Name": "strip",
+        "Description": "Strip cabel for power supply"
+      },
+      {
+        "Name": "solder",
+        "Description": "Solder cabel for power supply onto the mainbord"
+      },
+      {
+        "Name": "screw",
+        "Description": "Fasten screw D on the mainboard"
+      }
+    ]
+  },
+  {
+    "IPC": "CX-4060",
+    "Tasks": [
+      {
+        "Name": "solder",
+        "Description": "Weld component A onto the casing"
+      }
+    ]
+  }
+]
